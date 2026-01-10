@@ -31,7 +31,8 @@ class PasswordManager
 {
     const int defaultLength = 13;
 
-    string dbPath = Path.Combine(AppContext.BaseDirectory, "passwords.txt");
+    string dbPath = "";
+    string dbPathFile =Path.Combine(AppContext.BaseDirectory, ".dbPath");
     string masterPasswordPath = Path.Combine(AppContext.BaseDirectory, ".masterpassword");
 
     List<PasswordObject> passwords;
@@ -39,6 +40,11 @@ class PasswordManager
 
     public PasswordManager()
     {
+        dbPath = GetDbPath();
+        if(dbPath == null)
+        {
+            dbPath = SetNewDb();
+        }
         passwords = LoadPasswords();
         masterPassword = GetMasterPassword();
 
@@ -243,6 +249,35 @@ class PasswordManager
         Success("Login successful");
         Pause();
     }
+    string? GetDbPath()
+    {
+         if (!File.Exists(dbPathFile)) return null;
+        return File.ReadAllText(dbPathFile);
+    }
+    string SetNewDb()
+{
+    string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    string defaultDir = Path.Combine(home, "password-manager");
+    string defaultPath = Path.Combine(defaultDir, "passwords.txt");
+
+    while (true)
+    {
+        Console.Write($"\n📁 Enter directory to store the database\n   (default: {defaultDir})\n➡ ");
+        string? input = Console.ReadLine();
+
+        string dir = string.IsNullOrWhiteSpace(input) ? defaultDir : input;
+
+        try
+        {
+            Directory.CreateDirectory(dir);
+            return Path.Combine(dir, "passwords.txt");
+        }
+        catch
+        {
+            Console.WriteLine("❌ Invalid path. Try again.");
+        }
+    }
+}
 
     string Hash(string s)
     {
