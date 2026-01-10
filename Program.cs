@@ -2,258 +2,261 @@
 using System.Text.Json;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Intrinsics.Arm;
+using System.Xml.Serialization;
 using System.Text;
 using System.Security.Cryptography;
+using System.Dynamic;
 
 class Program
 {
     static void Main()
     {
-        DisplayLogo();
+        Console.Clear();
+        Console.WriteLine(@"
+██████╗  █████╗ ███████╗██████╗ ███████╗██████╗ 
+██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝██╔══██╗
+██████╔╝███████║███████╗██████╔╝█████╗  ██████╔╝
+██╔═══╝ ██╔══██║╚════██║██╔═══╝ ██╔══╝  ██╔══██╗
+██║     ██║  ██║███████║██║     ███████╗██║  ██║
+╚═╝     ╚═╝  ╚═╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝
+        ");
+        Console.WriteLine("Welcome to the Password Manager!\n");
+
         PasswordManager manager = new PasswordManager();
         manager.Run();
-    }
-
-    static void DisplayLogo()
-    {
-        Console.Clear();
-        Console.WriteLine("======================================");
-        Console.WriteLine("       🔐 SIMPLE PASSWORD MANAGER 🔐    ");
-        Console.WriteLine("======================================\n");
     }
 }
 
 class PasswordManager
 {
-    const int DefaultLength = 13;
-    const string DbPath = "/home/mio/passwords.txt";
-    const string MasterPasswordPath = ".masterpassword";
+    const int defaultLength = 13;
+    const string dbPath = "/home/mio/passwords.txt";
+    const string masterPasswordPath = ".masterpasword";
 
-    private List<PasswordObject> Passwords;
-    private string? MasterPassword;
+    private List<PasswordObject> passwords;
+    private string? masterPassword;
 
     public PasswordManager()
     {
-        Passwords = LoadPasswords();
-        MasterPassword = GetStoredMasterPassword();
+        passwords = LoadPasswords();
+        masterPassword = getMasterPasword();
 
-        if (MasterPassword != null)
-            PromptLogin();
+        if (masterPassword != null)
+        {
+            logIn();
+        }
         else
-            SetNewMasterPassword();
+        {
+            setNewMasterPasword();
+        }
     }
 
     public void Run()
     {
-        ShowMainMenu();
+        RenderMainMenu();
     }
 
-    void ShowMainMenu()
+    void RenderMainMenu()
     {
         while (true)
         {
             Console.Clear();
-            Console.WriteLine("========= MAIN MENU =========\n");
+            Console.WriteLine("=== Main Menu ===");
             Console.WriteLine("(1) Generate Password");
             Console.WriteLine("(2) Save Password");
             Console.WriteLine("(3) View Passwords");
             Console.WriteLine("(4) Delete a Password");
-            Console.WriteLine("(Ctrl + C to quit)\n");
-            Console.Write("Enter your choice: ");
+            Console.WriteLine("Press Ctrl + C to quit");
+            Console.Write("\nSelect an option: ");
 
             string? input = Console.ReadLine();
-            Console.WriteLine();
 
             switch (input)
             {
                 case "1":
-                    GeneratePasswordMenu();
+                    RenderGeneratePasswordMenu();
                     break;
                 case "2":
-                    SavePasswordMenu();
+                    RenderSavePasswordMenu();
                     break;
                 case "3":
-                    DisplayPasswords();
+                    ViewPasswords();
                     break;
                 case "4":
-                    DeletePasswordMenu();
+                    RenderDeleteMenu();
                     break;
                 default:
-                    Console.WriteLine("⚠️ Invalid selection. Please try again.");
+                    Console.WriteLine("❌ Please enter a valid selection.");
                     Pause();
                     break;
             }
         }
     }
 
-    void SavePasswordMenu()
+    void RenderSavePasswordMenu()
     {
-        Console.WriteLine("💾 Enter the password to save:");
+        Console.Write("\nEnter your password to save: ");
         string password = Console.ReadLine() ?? "";
 
-        Console.WriteLine("📛 Give this password a name:");
-        string name = Console.ReadLine() ?? "Unnamed";
+        Console.Write("Give this password a name: ");
+        string name = Console.ReadLine() ?? "";
 
         AddPassword(name, password);
     }
 
-    void GeneratePasswordMenu()
+    void RenderDeleteMenu()
     {
-        Console.WriteLine($"🛠 How long should the password be? (default: {DefaultLength})");
+        if (passwords.Count == 0)
+        {
+            Console.WriteLine("\n⚠️ No passwords to delete.");
+            Pause();
+            return;
+        }
 
-        int length = DefaultLength;
+        Console.WriteLine("\nSelect Password to delete:");
+        for (int index = 0; index < passwords.Count; index++)
+        {
+            string decrypted = DecryptPassword(passwords[index].password);
+            Console.WriteLine($"({index}) {passwords[index].name} : {decrypted}");
+        }
+
+        int deleteIndex;
+        while (true)
+        {
+            Console.Write("\nEnter the number of the password to delete: ");
+            string input = Console.ReadLine() ?? "";
+
+            if (int.TryParse(input, out deleteIndex) && deleteIndex >= 0 && deleteIndex < passwords.Count)
+                break;
+
+            Console.WriteLine("❌ Invalid number, try again.");
+        }
+
+        passwords.RemoveAt(deleteIndex);
+        SavePasswords();
+        Console.WriteLine("✅ Password deleted successfully!");
+        Pause();
+    }
+
+    void RenderGeneratePasswordMenu()
+    {
+        Console.Write($"\nHow long should the password be? (default: {defaultLength}): ");
+        int length = defaultLength;
         string? input = Console.ReadLine();
-
         if (!string.IsNullOrEmpty(input))
             int.TryParse(input, out length);
 
         string password = GeneratePassword(length);
-        Console.WriteLine($"\n✅ Generated password: {password}\n");
+        Console.WriteLine($"\nGenerated password: {password}");
 
-        Console.WriteLine("💾 Save this password? (y/n)");
+        Console.Write("\nSave this password? (y/n): ");
         string? choice = Console.ReadLine();
 
         if (choice?.ToLower() == "y")
         {
-            Console.WriteLine("📛 Enter a name:");
+            Console.Write("Enter a name for this password: ");
             string name = Console.ReadLine() ?? "Unnamed";
             AddPassword(name, password);
         }
-    }
-
-    void DisplayPasswords()
-    {
-        Console.WriteLine("========= SAVED PASSWORDS =========\n");
-
-        if (Passwords.Count == 0)
-        {
-            Console.WriteLine("⚠️  No passwords saved yet.\n");
-            Pause();
-            return;
-        }
-
-        for (int i = 0; i < Passwords.Count; i++)
-        {
-            string decrypted = DecryptPassword(Passwords[i].Password);
-            Console.WriteLine($"({i}) {Passwords[i].Name} : {decrypted}");
-        }
-
-        Console.WriteLine();
-        Pause();
-    }
-
-    void DeletePasswordMenu()
-    {
-        Console.WriteLine("========= DELETE A PASSWORD =========\n");
-
-        if (Passwords.Count == 0)
-        {
-            Console.WriteLine("⚠️  No passwords to delete.\n");
-            Pause();
-            return;
-        }
-
-        for (int i = 0; i < Passwords.Count; i++)
-        {
-            string decrypted = DecryptPassword(Passwords[i].Password);
-            Console.WriteLine($"({i}) {Passwords[i].Name} : {decrypted}");
-        }
-
-        Console.Write("\nEnter the number of the password to delete: ");
-        int deleteIndex;
-        while (true)
-        {
-            string input = Console.ReadLine() ?? "";
-            if (int.TryParse(input, out deleteIndex))
-            {
-                if (deleteIndex >= 0 && deleteIndex < Passwords.Count)
-                    break;
-                Console.WriteLine($"⚠️ Number must be between 0 and {Passwords.Count - 1}. Try again:");
-            }
-            else
-            {
-                Console.WriteLine("⚠️ Please enter a valid number:");
-            }
-        }
-
-        Passwords.RemoveAt(deleteIndex);
-        SavePasswords();
-        Console.WriteLine("✅ Password deleted successfully.");
-        Pause();
-    }
-
-    void AddPassword(string name, string password)
-    {
-        string encrypted = EncryptPassword(password);
-        Passwords.Add(new PasswordObject(name, encrypted));
-        SavePasswords();
-        Console.WriteLine("💾 Password saved successfully (encrypted).");
-        Pause();
     }
 
     string GeneratePassword(int length)
     {
         Random rnd = new Random();
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder password = new StringBuilder();
+        string password = "";
 
         for (int i = 0; i < length; i++)
         {
             if (i > 0 && i % 5 == 0)
-                password.Append("-");
+                password += "-";
 
-            password.Append(chars[rnd.Next(chars.Length)]);
+            password += chars[rnd.Next(chars.Length)];
         }
 
-        return password.ToString();
+        return password;
+    }
+
+    void AddPassword(string name, string password)
+    {
+        string encrypted = EncryptPassword(password);
+        passwords.Add(new PasswordObject(name, encrypted));
+        SavePasswords();
+        Console.WriteLine("✅ Password saved (encrypted).");
+        Pause();
+    }
+
+    void ViewPasswords()
+    {
+        if (passwords.Count == 0)
+        {
+            Console.WriteLine("\n⚠️ No passwords saved.");
+            Pause();
+            return;
+        }
+
+        Console.WriteLine("\nSaved Passwords:");
+        foreach (var p in passwords)
+        {
+            string decrypted = DecryptPassword(p.password);
+            Console.WriteLine($"🔑 {p.name} : {decrypted}");
+        }
+        Pause();
     }
 
     void SavePasswords()
     {
-        string json = JsonSerializer.Serialize(Passwords, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(DbPath, json);
+        string json = JsonSerializer.Serialize(passwords, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(dbPath, json);
     }
 
     List<PasswordObject> LoadPasswords()
     {
-        if (!File.Exists(DbPath))
+        if (!File.Exists(dbPath))
             return new List<PasswordObject>();
 
-        string json = File.ReadAllText(DbPath);
+        string json = File.ReadAllText(dbPath);
         return JsonSerializer.Deserialize<List<PasswordObject>>(json) ?? new List<PasswordObject>();
     }
 
-    string? GetStoredMasterPassword()
+    string? getMasterPasword()
     {
-        if (!File.Exists(MasterPasswordPath))
+        if (!File.Exists(masterPasswordPath))
             return null;
 
-        return File.ReadAllText(MasterPasswordPath);
+        return File.ReadAllText(masterPasswordPath);
     }
 
-    void SetNewMasterPassword()
+    void setNewMasterPasword()
     {
-        Console.WriteLine("🔑 Enter a master password to protect your passwords:");
-        MasterPassword = Console.ReadLine() ?? "";
-        File.WriteAllText(MasterPasswordPath, HashString(MasterPassword));
+        Console.Write("\n🔑 Enter a master password to protect your saved passwords: ");
+        masterPassword = Console.ReadLine();
+        if (string.IsNullOrEmpty(masterPassword))
+        {
+            Console.WriteLine("❌ Master password cannot be empty. Exiting...");
+            Environment.Exit(0);
+        }
+
+        File.WriteAllText(masterPasswordPath, HashString(masterPassword));
         Console.WriteLine("✅ Master password set successfully!");
         Pause();
     }
 
-    void PromptLogin()
+    void logIn()
     {
-        Console.WriteLine("🔐 Enter your master password to unlock:");
-        string password = Console.ReadLine() ?? "";
+        Console.Write("\n🔐 Enter your master password: ");
+        string password = Console.ReadLine();
 
-        if (MasterPassword == HashString(password))
+        if (password != null && masterPassword == HashString(password))
         {
-            MasterPassword = password;
+            masterPassword = password; // store plaintext in memory
             Console.WriteLine("✅ Login successful!");
             Pause();
         }
         else
         {
-            Console.WriteLine("❌ Wrong master password. Exiting...");
+            Console.WriteLine("❌ Wrong password. Exiting...");
             Environment.Exit(0);
         }
     }
@@ -273,8 +276,10 @@ class PasswordManager
 
     string EncryptPassword(string plainText)
     {
-        byte[] key = GetAesKey(MasterPassword!);
+        if (masterPassword == null)
+            throw new InvalidOperationException("Master password is not set.");
 
+        byte[] key = GetAesKey(masterPassword);
         using var aes = System.Security.Cryptography.Aes.Create();
         aes.Key = key;
         aes.GenerateIV();
@@ -283,14 +288,18 @@ class PasswordManager
         using var encryptor = aes.CreateEncryptor();
         byte[] encryptedBytes = encryptor.TransformFinalBlock(Encoding.UTF8.GetBytes(plainText), 0, plainText.Length);
 
-        return Convert.ToBase64String(iv) + ":" + Convert.ToBase64String(encryptedBytes);
+        string combined = Convert.ToBase64String(iv) + ":" + Convert.ToBase64String(encryptedBytes);
+        return combined;
     }
 
     string DecryptPassword(string encryptedText)
     {
-        byte[] key = GetAesKey(MasterPassword!);
+        if (masterPassword == null)
+            throw new InvalidOperationException("Master password is not set.");
 
+        byte[] key = GetAesKey(masterPassword);
         string[] parts = encryptedText.Split(':');
+
         if (parts.Length != 2)
             throw new Exception("Invalid encrypted format");
 
@@ -316,14 +325,14 @@ class PasswordManager
 
 class PasswordObject
 {
-    public string Name { get; set; }
-    public string Password { get; set; }
-    public string Id { get; set; }
+    public string name { get; set; }
+    public string password { get; set; }
+    public string id { get; set; }
 
     public PasswordObject(string name, string password)
     {
-        Name = name;
-        Password = password;
-        Id = Guid.NewGuid().ToString();
+        this.name = name;
+        this.password = password;
+        this.id = Guid.NewGuid().ToString();
     }
 }
