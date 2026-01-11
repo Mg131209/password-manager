@@ -257,7 +257,7 @@ class PasswordManager
     string SetNewDb()
 {
     string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-    string defaultDir = Path.Combine(home, "password-manager");
+    string defaultDir = Path.Combine(home, "pasper");
     string defaultPath = Path.Combine(defaultDir, "passwords.txt");
 
     while (true)
