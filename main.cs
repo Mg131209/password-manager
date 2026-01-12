@@ -254,30 +254,34 @@ class PasswordManager
          if (!File.Exists(dbPathFile)) return null;
         return File.ReadAllText(dbPathFile);
     }
-    string SetNewDb()
-{
-    string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-    string defaultDir = Path.Combine(home, "pasper");
-    string defaultPath = Path.Combine(defaultDir, "passwords.txt");
-
-    while (true)
+   string SetNewDb()
     {
-        Console.Write($"\n📁 Enter directory to store the database\n   (default: {defaultDir})\n➡ ");
-        string? input = Console.ReadLine();
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string defaultDir = Path.Combine(home, "pasper");
 
-        string dir = string.IsNullOrWhiteSpace(input) ? defaultDir : input;
+        while (true)
+        {
+            Console.Write($"\n📁 Enter directory to store the database\n   (default: {defaultDir})\n➡ ");
+            string? input = Console.ReadLine();
 
-        try
-        {
-            Directory.CreateDirectory(dir);
-            return Path.Combine(dir, "passwords.txt");
-        }
-        catch
-        {
-            Console.WriteLine("❌ Invalid path. Try again.");
+            string dir = string.IsNullOrWhiteSpace(input) ? defaultDir : input;
+
+            try
+            {
+                Directory.CreateDirectory(dir);
+                string path = Path.Combine(dir, "passwords.txt");
+
+                File.WriteAllText(dbPathFile, path); // <<< THIS WAS MISSING
+
+                return path;
+            }
+            catch
+            {
+                Console.WriteLine("❌ Invalid path. Try again.");
+            }
         }
     }
-}
+
 
     string Hash(string s)
     {
