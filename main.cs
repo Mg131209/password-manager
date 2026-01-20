@@ -41,6 +41,7 @@ class PasswordManager
     public PasswordManager()
     {
         dbPath = GetDbPath();
+        Console.WriteLine(dbPathFile);
         if(dbPath == null)
         {
             dbPath = SetNewDb();
@@ -269,7 +270,7 @@ class PasswordManager
             try
             {
                 Directory.CreateDirectory(dir);
-                string path = Path.Combine(dir, "passwords.txt");
+                string path = Path.Combine(dir, "passwords.json");
 
                 File.WriteAllText(dbPathFile, path); // <<< THIS WAS MISSING
 
@@ -350,7 +351,6 @@ class PasswordManager
         Console.WriteLine($"⚠ {msg}");
         Console.ResetColor();
     }
-
     void Pause()
     {
         Console.WriteLine("\nPress any key...");
